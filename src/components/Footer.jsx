@@ -38,11 +38,11 @@ export default function Footer() {
         <div>
           <h3 className="text-lg font-semibold mb-4">Navigation</h3>
           <ul className="space-y-2 text-sm text-gray-600">
-            <li><a href="#about" className="hover:text-blue-600">About</a></li>
-            <li><a href="#features" className="hover:text-blue-600">Features</a></li>
-            <li><a href="#samples" className="hover:text-blue-600">Samples</a></li>
-            <li><a href="#faq" className="hover:text-blue-600">FAQ</a></li>
-            <li><a href="#contact" className="hover:text-blue-600">Contact</a></li>
+            <li><a href="/about" className="hover:text-blue-600">About</a></li>
+            <li><a href="/features" className="hover:text-blue-600">Features</a></li>
+            <li><a href="/samples" className="hover:text-blue-600">Samples</a></li>
+            <li><a href="/faq" className="hover:text-blue-600">FAQ</a></li>
+            <li><a href="/contact" className="hover:text-blue-600">Contact</a></li>
           </ul>
         </div>
 
@@ -50,8 +50,8 @@ export default function Footer() {
         <div>
           <h3 className="text-lg font-semibold mb-4">Legal</h3>
           <ul className="space-y-2 text-sm text-gray-600">
-            <li><a href="#" className="hover:text-blue-600">Terms of Service</a></li>
-            <li><a href="#" className="hover:text-blue-600">Privacy Policy</a></li>
+            <li><a href="/terms" className="hover:text-blue-600">Terms of Service</a></li>
+            <li><a href="privacy" className="hover:text-blue-600">Privacy Policy</a></li>
           </ul>
         </div>
       </div>

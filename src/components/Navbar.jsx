@@ -9,17 +9,20 @@ export default function Navbar() {
   const toggleMenu = () => setMenuOpen(!menuOpen);
 
   const navLinks = [
-    { href: '#about', label: 'About' },
-    { href: '#features', label: 'Features' },
-    { href: '#samples', label: 'Samples' },
-    { href: '#faq', label: 'FAQ' },
-    { href: '#contact', label: 'Contact' },
+    { href: '/about', label: 'About' },
+    { href: '/features', label: 'Features' },
+    { href: '/samples', label: 'Samples' },
+    { href: '/faq', label: 'FAQ' },
+    { href: '/contact', label: 'Contact' },
   ];
 
   return (
     <nav className="w-full px-6 py-4 flex justify-between items-center shadow-md bg-white fixed top-0 z-50">
       {/* Logo */}
-      <div className="text-xl font-bold text-blue-600">ResumeAI</div>
+  
+<Link href="/" className="text-xl font-bold text-blue-600">
+  ResumeAI
+</Link>
 
       {/* Desktop Nav */}
       <ul className="hidden md:flex gap-6 text-sm font-medium">

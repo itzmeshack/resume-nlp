@@ -1,11 +1,16 @@
 'use client';
 import Link from 'next/link';
-import Hero from '@/components/Hero';
-import FeaturesGrid from '@/components/FeaturesGrid';
-import StatsSection from '@/components/StatsSection';
-import HowItWorks from '@/components/HowItWorks';
-import Footer from '@/components/Footer';
-import Navbar from '@/components/Navbar';
+import Hero from '../components/Hero';
+import FeaturesGrid from '../components/FeaturesGrid';
+import StatsSection from '../components/StatsSection';
+import HowItWorks from '../components/HowItWorks';
+import Footer from '../components/Footer';
+import Navbar from '../components/Navbar';
+import Testimonials from '../components/Testimonials';
+import CookieBanner from '../components/CookieBanner';
+
+
+
 
 export default function Home() {
   return (
@@ -28,8 +33,11 @@ export default function Home() {
       {/* ✅ Main Sections */}
       <Hero />
       <FeaturesGrid />
+      <Testimonials/>
       <StatsSection />
       <HowItWorks />
+     
+     <CookieBanner/>
       <Footer />
     </main>
   );

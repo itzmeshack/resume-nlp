@@ -1,5 +1,6 @@
 import './globals.css';
 import Script from 'next/script';
+import CookieBanner from '../components/CookieBanner';
 
 export const metadata = {
   title: 'ResumeAI',
@@ -10,7 +11,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        {/* Load Vanta Waves */}
         <Script
           src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r121/three.min.js"
           strategy="beforeInteractive"
@@ -20,7 +20,11 @@ export default function RootLayout({ children }) {
           strategy="beforeInteractive"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CookieBanner/>
+   
+      </body>
     </html>
   );
 }
