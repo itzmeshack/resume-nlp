@@ -9,11 +9,12 @@ export default function Hero() {
     if (typeof window !== 'undefined' && window.VANTA && !vantaEffect) {
       const effect = window.VANTA.WAVES({
         el: heroRef.current,
-       color: 0x000000, // ← black
+        color: 0x000000,
         shininess: 50,
         waveHeight: 20,
         waveSpeed: 1.0,
-        zoom: 1.2,
+        zoom: 1.5,
+        backgroundColor: 0x000000,
       });
       setVantaEffect(effect);
     }
@@ -33,7 +34,7 @@ export default function Hero() {
           Use AI and NLP to improve your resume and increase your chances of landing your dream job.
         </p>
         <a href="#signup">
-          <button className="bg-white text-blue-600 hover:bg-blue-100 font-semibold px-6 py-3 rounded-md">
+          <button className="bg-white text-black hover:bg-gray-200 font-semibold px-6 py-3 rounded-md">
             Get Started
           </button>
         </a>

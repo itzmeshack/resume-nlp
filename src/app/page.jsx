@@ -1,7 +1,7 @@
 'use client';
-
 import Link from 'next/link';
 import Hero from '@/components/Hero';
+import FeaturesGrid from '@/components/FeaturesGrid';
 
 export default function Home() {
   return (
@@ -22,31 +22,24 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* 👇 This is placeholder until we build sections */}
-      <section className="pt-24 px-6">
-        <h1 className="text-3xl font-bold mb-4">Welcome to ResumeAI</h1>
-        <p className="max-w-xl text-gray-600">
-          This is where your future starts. Let's build a smarter resume with the power of AI & NLP.
-        </p>
-      </section>
-
-
       {/* ✅ Hero Section */}
-          <Hero />
-<section className="pt-32 px-6 pb-20 bg-gradient-to-br from-blue-100 to-white text-center">
-  <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
-    Enhance Your Resume with AI
+         <section 
+    
+ 
+     className="w-full h-[270px] flex flex-col justify-center items-center text-center px-6 py-20"
+>
+<h1 className="text-3xl md:text-5xl font-bold mb-4 animate-gradient-text">
+    Welcome to ResumeAI
   </h1>
-  <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-    Use the power of AI and natural language processing to improve your resume and align it with your dream job.
+  <p className="max-w-6xl text-lg">
+    This is where your future starts. Let's build a smarter resume with the power of AI & NLP.
   </p>
-  <a href="#signup">
-    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium">
-      Get Started for Free
-    </button>
-  </a>
 </section>
 
+      {/* ✅ Placeholder Section */}
+  <Hero/>
+
+  <FeaturesGrid/>
     </main>
   );
 }
