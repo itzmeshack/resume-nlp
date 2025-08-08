@@ -45,10 +45,10 @@ export default function ContactPage() {
       <Toaster
         position="top-right"
         toastOptions={{
-          duration: 4000,
+          duration: 1000,
           className: '',
           style: {
-            animation: 'slide-in 0.4s ease-in-out',
+            animation: 'slide-in 0.2s ease-in-out',
           },
         }}
       />
