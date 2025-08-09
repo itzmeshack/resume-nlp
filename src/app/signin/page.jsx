@@ -40,19 +40,24 @@ export default function SignInPage() {
     <main className="min-h-screen relative overflow-hidden text-gray-900">
       {/* 3D background */}
       <div ref={bgRef} className="fixed inset-0 -z-10 pointer-events-none" />
+
       {/* Navbar (z-50 so always on top) */}
       <div className="relative z-50">
         <Navbar />
       </div>
+
       <Toaster position="top-center" />
+
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
         <GlassySignInForm />
       </div>
+
       {/* Footer */}
       <div className="relative z-10">
         <Footer />
       </div>
+
       <style jsx global>{`
         .animate-float {
           animation: floatCard 5s ease-in-out infinite;

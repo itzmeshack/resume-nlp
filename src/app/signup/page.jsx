@@ -19,7 +19,7 @@ export default function SignUpPage() {
           VANTA.default({
             el: bgRef.current,
             color: 0x3b82f6,
-            backgroundColor:  0x000000,
+            backgroundColor: 0x000000,
             points: 12.0,
             maxDistance: 20.0,
             spacing: 16.0,
@@ -37,7 +37,7 @@ export default function SignUpPage() {
   }, [vantaEffect]);
 
   return (
-  <main className="min-h-screen relative overflow-hidden text-gray-900">
+    <main className="min-h-screen relative overflow-hidden text-gray-900">
       {/* Animated background */}
       <div ref={bgRef} className="fixed inset-0 -z-10 pointer-events-none" />
 
