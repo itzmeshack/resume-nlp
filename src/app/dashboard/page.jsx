@@ -67,28 +67,35 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard
-          icon={<FileText className="w-5 h-5" />}
-          label="Total Projects"
-          value="12"
-        />
-        <StatCard
-          icon={<BarChart3 className="w-5 h-5" />}
-          label="Avg. Match Score"
-          value="78%"
-        />
-        <StatCard
-          icon={<Sparkles className="w-5 h-5" />}
-          label="Suggestions Applied"
-          value="214"
-        />
-        <StatCard
-          icon={<Download className="w-5 h-5" />}
-          label="Exports"
-          value="36"
-        />
-      </div>
+<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+  <StatCard
+    icon={<FileText className="w-5 h-5" />}
+    label="Total Projects"
+    value="12"
+    valueClassName="text-blue-500"
+  />
+  <StatCard
+    icon={<BarChart3 className="w-5 h-5" />}
+    label="Avg. Match Score"
+    value="78%"
+    valueClassName="text-green-500"
+  />
+  <StatCard
+    icon={<Sparkles className="w-5 h-5" />}
+    label="Suggestions Applied"
+    value="214"
+    valueClassName="text-yellow-500"
+  />
+  <StatCard
+    icon={<Download className="w-5 h-5" />}
+    label="Exports"
+    value="36"
+    valueClassName="text-purple-500"
+  />
+</div>
+
+
+
 
       {/* Content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
