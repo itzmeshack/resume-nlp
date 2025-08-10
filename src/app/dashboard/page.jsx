@@ -6,12 +6,7 @@ import { supabase } from '../../lib/supabaseClient';
 import AppShell from '../../components/app/AppShell';
 import StatCard from '../../components/cards/StatCard';
 import RecentProjects from '../../components/lists/RecentProjects';
-import {
-  BarChart3,
-  FileText,
-  Sparkles,
-  Download,
-} from 'lucide-react';
+import { BarChart3, FileText, Sparkles, Download } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -20,7 +15,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       if (!data.session) {
@@ -29,15 +24,14 @@ export default function DashboardPage() {
       }
       setSession(data.session);
       setLoading(false);
-    };
-    load();
+    })();
     return () => { mounted = false; };
   }, [router]);
 
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-white to-gray-50">
-        <div className="max-w-6xl mx-auto px-6 pt-28">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24">
           <div className="animate-pulse grid grid-cols-1 md:grid-cols-4 gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-28 rounded-2xl bg-gray-200" />
@@ -51,23 +45,20 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Page header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Welcome back 👋</h1>
-          <p className="text-gray-500">
-            {session?.user?.email}
-          </p>
+          <p className="text-gray-500 truncate">{session?.user?.email}</p>
         </div>
-        <a href="/projects/new">
+        <a href="/projects/new" className="self-start sm:self-auto">
           <button className="rounded-xl bg-blue-600 text-white px-4 py-2 font-medium hover:bg-blue-700">
             New Project
           </button>
         </a>
       </div>
 
-      {/* Stat cards */}
-<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Stat cards: stack on mobile, grid on md+ */}
+     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
   <StatCard
     icon={<FileText className="w-5 h-5" />}
     label="Total Projects"
@@ -95,16 +86,11 @@ export default function DashboardPage() {
 </div>
 
 
-
-
-      {/* Content grid */}
+      {/* Content grid: stacks on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        {/* Recent projects */}
         <div className="lg:col-span-2">
           <RecentProjects />
         </div>
-
-        {/* Placeholder chart / insights card */}
         <div className="rounded-2xl border border-white/20 bg-white/70 backdrop-blur-xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] p-5">
           <h3 className="font-semibold mb-3">Weekly Progress</h3>
           <p className="text-sm text-gray-600 mb-4">
