@@ -10,29 +10,58 @@ import { Toaster, toast } from 'react-hot-toast';
 export default function ProjectsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
-
-  // mock data for now — replace with Supabase later
-  const [projects, setProjects] = useState([
-    { id: 'p1', name: 'Frontend Engineer @ Stripe', score: 82, status: 'Improved', updatedAt: '2025-08-01T11:00:00Z' },
-    { id: 'p2', name: 'Data Analyst @ Spotify',    score: 76, status: 'Analyzed', updatedAt: '2025-08-03T09:00:00Z' },
-    { id: 'p3', name: 'ML Engineer @ OpenAI',       score: 88, status: 'Improved', updatedAt: '2025-08-06T13:30:00Z' },
-  ]);
+  const [items, setItems] = useState([]);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    const load = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
       if (!data.session) {
         router.replace('/signin');
         return;
       }
-      setSession(data.session);
+      const { data: rows, error } = await supabase
+        .from('projects')
+        .select('id,name,latest_score,status,updated_at')
+        .order('updated_at', { ascending: false });
+
+      if (!mounted) return;
+      if (error) {
+        toast.error(error.message);
+        setItems([]);
+      } else {
+        // map to UI shape
+        setItems(
+          rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            score: r.latest_score ?? 0,
+            status: r.status ?? 'Draft',
+            updatedAt: r.updated_at,
+          }))
+        );
+      }
       setLoading(false);
-    })();
+    };
+
+    load();
     return () => { mounted = false; };
   }, [router]);
+
+  const onNewProject = () => router.push('/projects/new');
+
+  const onDelete = async (id) => {
+    const prev = items;
+    setItems((p) => p.filter((x) => x.id !== id)); // optimistic
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) {
+      toast.error(error.message);
+      setItems(prev);
+    } else {
+      toast.success('Project deleted');
+    }
+  };
 
   if (loading) {
     return (
@@ -48,22 +77,13 @@ export default function ProjectsPage() {
     );
   }
 
-  const onNewProject = () => router.push('/projects/new');
-
-  const onDelete = (id) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    toast.success('Project deleted');
-  };
-
   return (
     <AppShell>
       <Toaster position="top-center" />
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Projects</h1>
-          <p className="text-gray-500 truncate">
-            {session?.user?.email}
-          </p>
+          <p className="text-gray-500">Your AI resume projects</p>
         </div>
         <button
           onClick={onNewProject}
@@ -74,7 +94,7 @@ export default function ProjectsPage() {
       </div>
 
       <ProjectsTable
-        items={projects}
+        items={items}
         onDelete={onDelete}
         onOpen={(id) => router.push(`/projects/${id}`)}
       />
