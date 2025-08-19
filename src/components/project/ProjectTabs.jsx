@@ -6,6 +6,7 @@ import SuggestionsPanel from './panels/SuggestionsPanel';
 import KeywordsPanel from './panels/KeywordsPanel';
 import ATSChecklist from './panels/ATSChecklist';
 import VersionsPanel from './panels/VersionsPanel';
+import SettingsPanel from './panels/SettingsPanel'; // ⬅️ NEW
 
 const tabs = [
   { key: 'analyze', label: 'Analyze' },
@@ -13,6 +14,7 @@ const tabs = [
   { key: 'keywords', label: 'Keywords' },
   { key: 'ats', label: 'ATS Check' },
   { key: 'versions', label: 'Versions' },
+  { key: 'settings', label: 'Settings' }, // ⬅️ NEW
 ];
 
 export default function ProjectTabs({ project, onProjectChange }) {
@@ -39,17 +41,12 @@ export default function ProjectTabs({ project, onProjectChange }) {
         {active === 'analyze' && (
           <AnalyzePanel project={project} onProjectChange={onProjectChange} />
         )}
-        {active === 'suggestions' && (
-          <SuggestionsPanel />
-        )}
-        {active === 'keywords' && (
-          <KeywordsPanel />
-        )}
-        {active === 'ats' && (
-          <ATSChecklist />
-        )}
-        {active === 'versions' && (
-          <VersionsPanel />
+        {active === 'suggestions' && <SuggestionsPanel />}
+        {active === 'keywords' && <KeywordsPanel />}
+        {active === 'ats' && <ATSChecklist />}
+        {active === 'versions' && <VersionsPanel />}
+        {active === 'settings' && ( // ⬅️ NEW
+          <SettingsPanel project={project} onProjectChange={onProjectChange} />
         )}
       </div>
     </div>

@@ -1,3 +1,8 @@
+
+{/** NOTE: this file is not in use in this entire project you can choose 
+    to delete it in the future but be careful am not sure test the project without the 
+    file and then delete it.  */}
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import AppShell from '../../../components/app/AppShell';
@@ -42,6 +43,11 @@ export default function ProjectDetailPage() {
     return () => { mounted = false; };
   }, [id, router]);
 
+  const jdSnippet = useMemo(() => {
+    const jd = (project?.jd_text || '').replace(/\s+/g, ' ').trim();
+    return jd ? (jd.length > 60 ? jd.slice(0, 60) + '…' : jd) : '';
+  }, [project?.jd_text]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -56,17 +62,37 @@ export default function ProjectDetailPage() {
   return (
     <AppShell>
       <Toaster position="top-center" />
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold truncate">{project.name}</h1>
-          <p className="text-gray-500 text-sm">
-            Project ID: {project.id} • Status: <span className="font-medium">{project.status}</span>
-          </p>
+
+      {/* Compact header with white text */}
+      <header className="mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/projects"
+            className="shrink-0 inline-flex items-center rounded-lg border border-white/30 px-2.5 py-1.5 text-xs sm:text-sm text-white hover:bg-white/10"
+          >
+            ← Back to Projects
+          </Link>
+
+          <h1
+            className="
+              flex-1 min-w-0
+              text-[13px] sm:text-[14px] md:text-[16px]
+              font-semibold text-white
+              overflow-hidden text-ellipsis whitespace-nowrap
+            "
+            title={`${project?.name || 'Untitled'}${jdSnippet ? ` ↔ ${jdSnippet}` : ''}`}
+          >
+            {project?.name || 'Untitled'}
+            {jdSnippet ? <span className="text-white/60"> ↔ </span> : null}
+            <span className="text-white/90">{jdSnippet}</span>
+          </h1>
         </div>
-        <a href="/projects">
-          <button className="rounded-xl border px-4 py-2 hover:bg-gray-50">Back to Projects</button>
-        </a>
-      </div>
+
+        <div className="mt-1 text-[11px] sm:text-xs md:text-sm text-white/70">
+          Project ID: {project?.id} • Status:{' '}
+          <span className="font-medium text-white">{project?.status || 'Draft'}</span>
+        </div>
+      </header>
 
       <ProjectTabs
         project={project}

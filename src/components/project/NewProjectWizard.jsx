@@ -26,38 +26,34 @@ export default function NewProjectWizard() {
         return;
       }
 
-      // 1) optional upload
-      let uploadedPath = null;
-      let publicUrl = null;
+      // 1) upload to private bucket, keep STORAGE PATH (not public url)
+      let resumePath = null;
       if (resumeFile) {
         const ext = resumeFile.name.split('.').pop()?.toLowerCase() || 'bin';
-        uploadedPath = `${uid}/${Date.now()}.${ext}`;
+        resumePath = `${uid}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase
           .storage
           .from('resumes')
-          .upload(uploadedPath, resumeFile, { upsert: false, cacheControl: '3600' });
+          .upload(resumePath, resumeFile, { upsert: false, cacheControl: '3600' });
         if (upErr) {
           console.warn('Upload failed:', upErr.message);
-          toast.error('Resume upload failed (continuing without file).');
-          uploadedPath = null;
-        } else {
-          const { data: pub } = supabase.storage.from('resumes').getPublicUrl(uploadedPath);
-          publicUrl = pub?.publicUrl ?? null;
+          toast.error('Resume upload failed.');
+          resumePath = null;
         }
       }
 
-      // 2) compute project name
+      // 2) nice display name
       const nameFromFile = resumeFile?.name?.replace(/\.[^.]+$/, '') || 'My Resume';
       const snippet = jdText.trim().split('\n')[0]?.slice(0, 60) || 'Job Description';
       const projectName = `${nameFromFile} ↔ ${snippet}`;
 
-      // 3) insert project
+      // 3) insert project; store resume_path (NOT resume_url)
       const { data: inserted, error } = await supabase
         .from('projects')
         .insert({
           user_id: uid,
           name: projectName,
-          resume_url: publicUrl,
+          resume_path: resumePath,
           jd_text: jdText,
           status: 'Draft',
         })
