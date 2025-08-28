@@ -1,13 +1,13 @@
 // src/app/api/ai-analyze/route.js
-// Gemini-powered analysis with JD-aligned ranking + per-call variety.
-// Supports `mode: 'focused' | 'comprehensive'` and `maxSuggestions` override.
+// Gemini-powered suggestions/rewrites with a deterministic, locally computed score.
+// The score will not change unless you explicitly click Analyze/Regenerate.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-/* ---------------- ATS (light heuristics) ---------------- */
+/* ---------------- Tiny ATS checks (deterministic) ---------------- */
 function atsChecks(text = '') {
   const words = (text.match(/\S+/g) || []).length;
   const hasEmail = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(text);
@@ -42,96 +42,114 @@ function atsChecks(text = '') {
   return out;
 }
 
-/* ---------------- utils for JD keywording & ranking ---------------- */
+/* ---------------- Deterministic JD keyword extraction ---------------- */
 const STOP = new Set([
-  'the','and','for','with','you','your','are','was','were','this','that','from','have','has','had',
-  'but','not','all','any','can','will','into','onto','our','their','they','them','a','an','of','to',
-  'in','on','as','by','at','is','be','or','it','we','i','&','—','–','/','\\'
+  'the','and','for','with','you','your','are','was','were','this','that','from','have','has',
+  'had','but','not','all','any','can','will','into','onto','our','their','they','them',
+  'a','an','of','to','in','on','as','by','at','is','be','or','it','we','i','&'
 ]);
 
-const norm = s => String(s || '').replace(/\s+/g, ' ').trim();
-const canon = s => norm(s).toLowerCase();
-const normalize = s => (s || '').toLowerCase().replace(/[^a-z0-9+#.\s-]/g, ' ');
-const tokenize = (text) =>
-  normalize(text).split(/\s+/).filter(w => w && w.length > 2 && !STOP.has(w));
+const PHRASES = [
+  'customer service','passenger assistance','airport operations','check in','check-in','boarding',
+  'luggage handling','baggage handling','safety procedures','clean and organized',
+  'fast-paced environment','teamwork','communication skills'
+];
 
+function normalize(s) {
+  return (s || '').toLowerCase();
+}
+function normText(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9+#.\s-]/g, ' ');
+}
+function tokenize(text) {
+  return normText(text)
+    .split(/\s+/)
+    .filter(w => w && w.length > 2 && !STOP.has(w));
+}
 function countFreq(tokens) {
-  const m = new Map();
-  for (const t of tokens) m.set(t, (m.get(t) || 0) + 1);
-  return Array.from(m.entries()).sort((a,b) => b[1] - a[1]);
+  const map = new Map();
+  for (const t of tokens) map.set(t, (map.get(t) || 0) + 1);
+  return Array.from(map.entries()).sort((a,b) => b[1]-a[1]);
 }
-function topWords(text, cap = 30) {
-  const toks = tokenize(text);
-  return countFreq(toks).map(([w]) => w).slice(0, cap);
-}
-function topBigrams(text, cap = 30) {
-  const toks = tokenize(text);
-  const m = new Map();
-  for (let i = 0; i < toks.length - 1; i++) {
-    const bg = `${toks[i]} ${toks[i+1]}`;
-    m.set(bg, (m.get(bg) || 0) + 1);
+
+/** Build a JD keyword pool deterministically, then check presence in resume */
+function deriveCoverage(resumeText, jdText, topN = 40) {
+  const jdTokens = tokenize(jdText);
+  const topUni = countFreq(jdTokens)
+    .filter(([w]) => !/^\d+$/.test(w))
+    .slice(0, topN)
+    .map(([w]) => w);
+
+  const jdNorm = normText(jdText);
+  const jdPhrases = PHRASES.filter(p => jdNorm.includes(p));
+
+  const keywordPool = Array.from(new Set([...jdPhrases, ...topUni])); // phrases first
+  const resTokens = new Set(tokenize(resumeText));
+  const resNorm = normText(resumeText);
+
+  const present = [];
+  const missing = [];
+  for (const k of keywordPool) {
+    const isPhrase = k.includes(' ');
+    const hit = isPhrase ? resNorm.includes(k) : resTokens.has(k);
+    (hit ? present : missing).push(k);
   }
-  return Array.from(m.entries())
-    .filter(([, n]) => n > 1)
-    .sort((a,b) => b[1] - a[1])
-    .map(([bg]) => bg)
-    .slice(0, cap);
-}
-function jdImportanceScore(s, jdWords, jdPhrases, missing) {
-  const low = s.toLowerCase();
-  let score = 0;
-  for (const p of jdPhrases) if (low.includes(p)) score += 3;
-  for (const m of missing)   if (low.includes(m)) score += 2;
-  for (const w of jdWords)   if (low.includes(w)) score += 1;
-  // Light preference for actionable/section-aware items
-  if (/summary|skills|experience|project|education|bullet|header|achievement|metric|kpi/i.test(s)) score += 0.5;
-  // Light penalty for generic fluff
-  if (/improve|enhance|optimize|leverage|stakeholder/i.test(s) && !/(add|include|replace|quantify|rename|reorder|merge)/i.test(s)) score -= 0.25;
-  return score;
-}
-function hashCode(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-  return h;
+  return { present, missing };
 }
 
-/* ---------------- Prompt ---------------- */
-function buildPrompt(resumeText, jdText, variantId, mode, maxSuggestions) {
-  const angles = [
-    'skill coverage & tools',
-    'impact & outcomes',
-    'leadership & collaboration',
-    'domain/industry alignment',
-    'ATS format & clarity',
-    'projects & portfolio evidence',
-    'metrics & KPIs (real facts only)',
-    'keywords & phrasing fit'
-  ];
-  const angle = angles[Math.abs(hashCode(String(variantId))) % angles.length];
+/** Deterministic score = coverage% rounded */
+function coverageScore(present, missing) {
+  const denom = present.length + missing.length;
+  if (!denom) return 0;
+  return Math.round((present.length / denom) * 100);
+}
 
-  const minSugs = mode === 'comprehensive' ? 12 : 6;
-  const maxSugs = Math.max(minSugs, Math.min(30, maxSuggestions || (mode === 'comprehensive' ? 24 : 10)));
-  const maxRewrites = mode === 'comprehensive' ? 10 : 6;
+/* ---------------- JSON schema (no additionalProperties) ---------------- */
+const Schema = {
+  type: 'object',
+  properties: {
+    present: { type: 'array', items: { type: 'string' } },
+    missing: { type: 'array', items: { type: 'string' } },
+    suggestions: { type: 'array', items: { type: 'string' } },
+    rewrites: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          original: { type: 'string' },
+          suggestion: { type: 'string' }
+        },
+        required: ['original', 'suggestion']
+      }
+    }
+  },
+  required: ['suggestions', 'rewrites'] // present/missing optional since we compute locally
+};
+
+/* ---------------- Prompt (for suggestions/rewrites only) ---------------- */
+function buildPrompt(resumeText, jdText, mode = 'focused') {
+  const intensity = mode === 'comprehensive'
+    ? 'Provide extensive coverage with many precise suggestions grounded in the JD.'
+    : 'Provide only the most critical suggestions that materially improve JD match.';
 
   return `
-You are matching a RESUME to a JOB DESCRIPTION and must return **valid JSON only** (no prose).
+You will produce JSON ONLY (no commentary).
 
-Hard rules:
-- Match strictly to the JD. Do NOT invent facts or numbers not present in resume/JD.
-- No placeholders like "X%" or "Y ms".
-- Suggestions must be **JD-aligned**, concrete, and non-duplicated.
+Task: Improve the RESUME to better match the JOB DESCRIPTION. Do not invent facts or fake numbers.
+- Suggestions must align strictly with JD content and resume evidence.
+- No placeholders like "X%" — if evidence absent, phrase the rewrite plainly without inventing numbers.
+- Rewrites should actually change phrasing to reflect JD terminology (no trivial rewording).
+- Avoid duplicate suggestions.
 
-Return JSON with the following fields:
+Return JSON with:
 {
-  "score": 0..100 integer (coverage + fit),
-  "present": [short keywords/phrases clearly present in resume relevant to JD],
-  "missing": [short keywords/phrases important in JD but absent in resume],
-  "suggestions": [${minSugs}..${maxSugs} concrete, JD-aligned improvements; no duplicates; no generic fluff],
-  "rewrites": [{ "original": "...", "suggestion": "..." }] // up to ${maxRewrites}, only if they materially improve JD-fit
+  "present": string[] (optional),
+  "missing": string[] (optional),
+  "suggestions": string[],       // concrete, de-duplicated, JD-aligned
+  "rewrites": [{ "original": "...", "suggestion": "..." }]  // only where it truly improves JD match
 }
 
-Focus angle for variety: ${angle}
-Variant ID: ${variantId}
+Guidance: ${intensity}
 
 JOB DESCRIPTION:
 ${jdText}
@@ -141,40 +159,37 @@ ${resumeText}
   `.trim();
 }
 
-/* ---------------- Gemini (no responseSchema to avoid 400) ---------------- */
-async function callGeminiJSON({ apiKey, model, prompt, temperature = 0.5 }) {
+/* ---------------- Gemini callers (temperature 0 for stability) ---------------- */
+async function callGeminiJSON({ model, apiKey, prompt, useSchema = true }) {
   const genAI = new GoogleGenerativeAI(apiKey);
   const m = genAI.getGenerativeModel({
     model,
-    generationConfig: {
-      temperature,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 2048,
-      responseMimeType: 'application/json',
-    }
+    generationConfig: useSchema
+      ? {
+          temperature: 0,
+          topP: 1,
+          topK: 1,
+          maxOutputTokens: 2048,
+          responseMimeType: 'application/json',
+          responseSchema: Schema
+        }
+      : {
+          temperature: 0,
+          topP: 1,
+          topK: 1,
+          maxOutputTokens: 2048,
+          responseMimeType: 'application/json'
+        }
   });
   const res = await m.generateContent(prompt);
-  const txt = (res.response?.text?.() || '').trim();
-  try { return JSON.parse(txt); } catch (e) {
+  const txt = (res?.response?.text?.() || '').trim();
+  if (!txt) throw new Error('Empty model response');
+  try {
+    return JSON.parse(txt);
+  } catch {
     const mjson = txt.match(/\{[\s\S]*\}$/);
     if (mjson) return JSON.parse(mjson[0]);
-    throw new Error('Gemini did not return JSON');
-  }
-}
-
-async function genJSON({ apiKey, prompt }) {
-  const primary   = process.env.GEMINI_MODEL || 'gemini-1.5-pro-002';
-  const secondary = 'gemini-1.5-flash-002';
-
-  try { return await callGeminiJSON({ apiKey, model: primary, prompt, temperature: 0.55 }); }
-  catch (e1) {
-    try { return await callGeminiJSON({ apiKey, model: secondary, prompt, temperature: 0.65 }); }
-    catch (e2) {
-      const err = new Error('All Gemini attempts failed');
-      err.details = { e1: String(e1?.message || e1), e2: String(e2?.message || e2) };
-      throw err;
-    }
+    throw new Error('Model did not return JSON');
   }
 }
 
@@ -182,39 +197,47 @@ async function genJSON({ apiKey, prompt }) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const resumeText = norm(body?.resumeText || '');
-    const jdText = norm(body?.jdText || '');
-    const variantId = body?.variantId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const mode = (body?.mode || 'focused').toLowerCase(); // 'focused' | 'comprehensive'
-    let maxSuggestions = Number(body?.maxSuggestions || 0) || (mode === 'comprehensive' ? 24 : 10);
+    const resumeText = (body?.resumeText || '').trim();
+    const jdText = (body?.jdText || '').trim();
+    const mode = body?.mode === 'comprehensive' ? 'comprehensive' : 'focused';
 
     if (!resumeText || !jdText) {
       return new Response(JSON.stringify({ error: 'Missing resumeText or jdText' }), { status: 400 });
     }
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const model = process.env.GEMINI_MODEL || 'gemini-1.5-pro-002';
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'Missing GOOGLE_GENERATIVE_AI_API_KEY' }), { status: 500 });
     }
 
-    // Build prompt and call Gemini
-    const prompt = buildPrompt(resumeText, jdText, variantId, mode, maxSuggestions);
-    const out = await genJSON({ apiKey, prompt });
+    // 1) Deterministic JD coverage (stable present/missing + score)
+    const local = deriveCoverage(resumeText, jdText, 40);
+    const stableScore = coverageScore(local.present, local.missing);
 
-    // JD importance pools (for ranking)
-    const jdWords   = topWords(jdText, 30);
-    const jdPhrases = topBigrams(jdText, 30);
+    // 2) Ask Gemini only for suggestions/rewrites (temperature 0)
+    let out;
+    try {
+      out = await callGeminiJSON({
+        model,
+        apiKey,
+        prompt: buildPrompt(resumeText, jdText, mode),
+        useSchema: true
+      });
+    } catch {
+      out = await callGeminiJSON({
+        model,
+        apiKey,
+        prompt: buildPrompt(resumeText, jdText, mode),
+        useSchema: false
+      });
+    }
 
-    // Present/missing
-    const present = Array.from(new Set((out.present || []).map(norm))).filter(Boolean);
-    const missing = Array.from(new Set((out.missing || []).map(norm))).filter(Boolean);
+    // 3) Post-process output (de-dup & meaningful rewrites only)
+    const norm = s => String(s || '').replace(/\s+/g, ' ').trim();
+    const canon = s => norm(s).toLowerCase();
 
-    // Suggestions: dedupe, JD-align ranking, cap by mode/max
-    let suggestions = (out.suggestions || [])
-      .map(s => norm(s))
-      .filter(Boolean);
-
-    // Remove duplicates (case-insensitive)
+    let suggestions = Array.isArray(out?.suggestions) ? out.suggestions.map(norm).filter(Boolean) : [];
     const seen = new Set();
     suggestions = suggestions.filter(s => {
       const key = canon(s);
@@ -223,40 +246,25 @@ export async function POST(req) {
       return true;
     });
 
-    // Keep JD-aligned ones first
-    const scored = suggestions.map(s => ({
-      s,
-      score: jdImportanceScore(s, jdWords, jdPhrases, missing)
-    }));
-    scored.sort((a,b) => b.score - a.score);
-
-    // Filter out ultra-generic ones (score <= 0), but keep at least a handful
-    let filtered = scored.filter(x => x.score > 0).map(x => x.s);
-    if (filtered.length < 4) filtered = scored.map(x => x.s); // fallback
-
-    // Final cap
-    const hardCap = Math.max(6, Math.min(30, maxSuggestions));
-    suggestions = filtered.slice(0, hardCap);
-
-    // Rewrites: only keep those that materially change text, cap by mode
-    let rewrites = Array.isArray(out.rewrites) ? out.rewrites : [];
+    let rewrites = Array.isArray(out?.rewrites) ? out.rewrites : [];
     rewrites = rewrites
       .filter(r => r && r.original && r.suggestion && canon(r.original) !== canon(r.suggestion))
-      .map(r => ({ original: norm(r.original), suggestion: norm(r.suggestion) }));
-
-    const maxRewrites = mode === 'comprehensive' ? 10 : 6;
-    rewrites = rewrites.slice(0, maxRewrites);
+      .map(r => ({ original: norm(r.original), suggestion: norm(r.suggestion) }))
+      .slice(0, 10);
 
     const payload = {
-      score: Math.max(0, Math.min(100, Number(out.score) || 0)),
-      present,
-      missing,
+      // Deterministic score (won’t change when switching tabs)
+      score: stableScore,
+      // Deterministic coverage
+      present: local.present,
+      missing: local.missing,
+      // Model output (cleaned)
       suggestions,
       rewrites,
+      // Deterministic ATS checks
       ats: atsChecks(resumeText),
       engine: 'gemini',
-      mode,
-      variantId
+      deterministic: true
     };
 
     return new Response(JSON.stringify(payload), {
@@ -264,7 +272,7 @@ export async function POST(req) {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {
-    console.error('ai-analyze (gemini) error:', e);
+    console.error('ai-analyze error:', e);
     return new Response(JSON.stringify({ error: 'Analyze failed' }), { status: 500 });
   }
 }

@@ -1,84 +1,21 @@
+// src/app/projects/components/AnalyzePanel.jsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Rocket, Loader2, ExternalLink, RefreshCcw } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { supabase } from '../../../lib/supabaseClient';
 import ExportReportButton from '../../export/ExportReportButton';
 import { useFreshProject } from '../hooks/useFreshProject';
-
-/* ---------------------- UI helpers ---------------------- */
-
-function scoreColor(score = 0) {
-  if (score >= 80) return { ring: 'stroke-emerald-500', text: 'text-emerald-600' };
-  if (score >= 50) return { ring: 'stroke-amber-500', text: 'text-amber-600' };
-  return { ring: 'stroke-rose-500', text: 'text-rose-600' };
-}
-
-function ScoreDonut({ score = 0, size = 120, stroke = 10 }) {
-  const s = Math.max(0, Math.min(100, Number(score) || 0));
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = (s / 100) * c;
-  const { ring, text } = scoreColor(s);
-
-  return (
-    <div className="flex items-center justify-center">
-      <svg width={size} height={size} className="block">
-        <circle
-          cx={size/2}
-          cy={size/2}
-          r={r}
-          className="stroke-gray-200"
-          strokeWidth={stroke}
-          fill="none"
-        />
-        <circle
-          cx={size/2}
-          cy={size/2}
-          r={r}
-          className={`${ring} transition-all duration-500`}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${c - dash}`}
-          transform={`rotate(-90 ${size/2} ${size/2})`}
-        />
-        <text
-          x="50%"
-          y="50%"
-          dominantBaseline="middle"
-          textAnchor="middle"
-          className={`font-semibold ${text}`}
-          style={{ fontSize: 20 }}
-        >
-          {s}%
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-/* ---------------------- Analyze Panel ---------------------- */
+import ScoreRing from '../../../components/ScoreRing';
 
 export default function AnalyzePanel({ project, onProjectChange }) {
-  const { proj, setProj, refresh, loading, lastError } = useFreshProject(project);
+  const { proj, setProj, refresh, lastError } = useFreshProject(project);
 
   const [opening, setOpening] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [running, setRunning] = useState(false);
-  const [refreshing, setRefreshing] = useState(false); // spin the arrow during refresh
   const [jdDraft, setJdDraft] = useState(project?.jd_text || '');
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      const r = await refresh();
-      if (r) toast.success('Refreshed');
-    } finally {
-      setTimeout(() => setRefreshing(false), 300);
-    }
-  };
 
   const syncJDDraft = () => setJdDraft(proj?.jd_text || '');
 
@@ -155,10 +92,7 @@ export default function AnalyzePanel({ project, onProjectChange }) {
       if (!res.ok) throw new Error(payload?.error || 'Parse failed');
 
       const text = (payload.text || '').trim();
-      if (!text) {
-        toast.error('Could not extract text from file.');
-        return;
-      }
+      if (!text) { toast.error('Could not extract text from file.'); return; }
 
       const { data: updated, error: upErr } = await supabase
         .from('projects')
@@ -182,14 +116,10 @@ export default function AnalyzePanel({ project, onProjectChange }) {
     try {
       const resumeText = (proj?.resume_text || '').trim();
       const jdText = (jdDraft || proj?.jd_text || '').trim();
+      if (!resumeText || !jdText) { toast.error('Add resume text and job description first.'); return; }
 
-      if (!resumeText || !jdText) {
-        toast.error('Add resume text and job description first.');
-        return;
-      }
-
-      // Persist changed JD so other panels see the same text
-      if (proj?.id && jdDraft.trim() !== (proj?.jd_text || '').trim()) {
+      // Save JD if changed
+      if (proj?.id && jdDraft && jdDraft.trim() !== (proj?.jd_text || '').trim()) {
         const { data: saved, error: saveErr } = await supabase
           .from('projects')
           .update({ jd_text: jdDraft.trim() })
@@ -202,25 +132,18 @@ export default function AnalyzePanel({ project, onProjectChange }) {
       }
 
       setRunning(true);
-
       const res = await fetch('/api/ai-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeText, jdText })
+        body: JSON.stringify({ resumeText, jdText, mode: 'comprehensive' })
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        const msg = data?.error || 'Analyze failed';
-        toast.error(msg);
-        throw new Error(msg);
-      }
+      if (!res.ok) throw new Error(data?.error || 'Analyze failed');
 
       const { error, data: updated } = await supabase
         .from('projects')
         .update({
-          latest_score: data.score,
+          latest_score: data.score,  // stable, deterministic
           status: 'Analyzed',
           analysis: data
         })
@@ -240,87 +163,64 @@ export default function AnalyzePanel({ project, onProjectChange }) {
     }
   };
 
-  const score = useMemo(() => {
-    const n = typeof proj?.latest_score === 'number' ? proj.latest_score : (proj?.analysis?.score ?? null);
-    return n ?? 0;
-  }, [proj?.latest_score, proj?.analysis?.score]);
+  const scoreRaw = proj?.latest_score ?? proj?.analysis?.score ?? null;
+  const score = Number.isFinite(Number(scoreRaw))
+    ? Math.max(0, Math.min(100, Math.round(Number(scoreRaw))))
+    : null;
 
   return (
     <div className="space-y-6 text-black">
       <Toaster position="top-center" />
 
-      {/* Status / Controls (mobile-first) */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex gap-2">
-          <button
-            onClick={handleRefresh}
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
-            title="Force refresh"
-          >
-            <RefreshCcw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <button
-            onClick={runAI}
-            disabled={running}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-black text-white px-4 py-2 text-sm font-medium hover:bg-black/90 disabled:opacity-50"
-          >
-            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-            {running ? 'Analyzing…' : 'Run / Regenerate'}
-          </button>
-          <div className="sm:hidden">
-            <ExportReportButton project={proj} result={proj?.analysis || null} />
-          </div>
-        </div>
+      {/* Status + debug row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={refresh}
+          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs hover:bg-gray-100"
+          title="Force refresh"
+        >
+          <RefreshCcw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
 
-        {/* Health badges */}
-        <div className="flex flex-wrap gap-2">
-          <span className={`text-xs px-2 py-1 rounded border ${proj?.resume_text?.trim() ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-            Resume text: {proj?.resume_text?.trim() ? `OK (${(proj?.resume_text || '').length} chars)` : 'Missing'}
+        <span className={`text-xs px-2 py-1 rounded border ${proj?.resume_text?.trim() ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+          Resume text: {proj?.resume_text?.trim() ? `OK (${(proj?.resume_text || '').length} chars)` : 'Missing'}
+        </span>
+        <span className={`text-xs px-2 py-1 rounded border ${proj?.jd_text?.trim() ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+          JD text: {proj?.jd_text?.trim() ? `OK (${(proj?.jd_text || '').length} chars)` : 'Missing'}
+        </span>
+
+        {Number.isFinite(score) && (
+          <span className="ml-auto">
+            <ScoreRing value={score} size={56} label="Match score" />
           </span>
-          <span className={`text-xs px-2 py-1 rounded border ${proj?.jd_text?.trim() ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-            JD text: {proj?.jd_text?.trim() ? `OK (${(proj?.jd_text || '').length} chars)` : 'Missing'}
+        )}
+
+        {lastError && (
+          <span className="text-xs px-2 py-1 rounded border border-red-300 bg-red-50 text-red-800">
+            Supabase read error: {lastError.message || 'RLS/Policy blocked'}
           </span>
-          {lastError && (
-            <span className="text-xs px-2 py-1 rounded border border-red-300 bg-red-50 text-red-800">
-              Supabase read error: {lastError.message || 'RLS/Policy blocked'}
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Score + Quick Export (responsive card) */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-4 sm:gap-6">
-        <ScoreDonut score={score} />
-        <div className="flex-1">
-          <h3 className="font-semibold text-sm sm:text-base">Match Score</h3>
-          <p className="text-xs sm:text-sm text-gray-700">
-            This score reflects how well your resume aligns with the current job description.
-          </p>
-        </div>
-        <div className="hidden sm:block">
-          <ExportReportButton project={proj} result={proj?.analysis || null} />
-        </div>
-      </div>
-
-      {/* Resume + JD cards (mobile-first, stackable) */}
+      {/* Resume + JD */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Resume */}
+        {/* Resume card */}
         <div className="rounded-xl border border-gray-300 bg-white p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-sm sm:text-base">Resume</h3>
+            <h3 className="font-semibold">Resume</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={extractText}
                 disabled={extracting}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
               >
                 {extracting ? 'Extracting…' : 'Extract Text'}
               </button>
               <button
                 onClick={openResume}
                 disabled={opening}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
               >
                 <ExternalLink className="w-4 h-4" />
                 {opening ? 'Opening…' : 'View'}
@@ -337,34 +237,73 @@ export default function AnalyzePanel({ project, onProjectChange }) {
         {/* JD editor */}
         <div className="rounded-xl border border-gray-300 bg-white p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-sm sm:text-base">Job Description</h3>
+            <h3 className="font-semibold">Job Description</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={syncJDDraft}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
                 title="Sync from DB"
               >
                 Sync
               </button>
               <button
                 onClick={saveJD}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
                 title="Save JD"
               >
                 Save
               </button>
             </div>
           </div>
+
           <textarea
             value={jdDraft}
             onChange={(e) => setJdDraft(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-3 text-sm min-h-[140px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded p-2 text-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Paste the job description here..."
           />
         </div>
       </div>
 
-      {/* Intentionally no Present/Missing/Suggestions/ATS sections here */}
+      {/* Actions */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={runAI}
+          disabled={running}
+          className="inline-flex items-center gap-2 rounded-xl bg-black text-white px-4 py-2 font-medium hover:bg-black/90 disabled:opacity-50"
+        >
+          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+          {running ? 'Analyzing…' : 'Run / Regenerate Suggestions'}
+        </button>
+
+        <ExportReportButton project={proj} result={proj?.analysis || null} />
+      </div>
+
+      {/* Results */}
+      {proj?.analysis && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-gray-300 bg-white p-4">
+            <h4 className="font-semibold">Present Keywords</h4>
+            <ul className="mt-2 text-sm list-disc ml-5 space-y-1 max-h-64 overflow-auto pr-2">
+              {(proj.analysis.present || []).map((k) => <li key={k}>{k}</li>)}
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-gray-300 bg-white p-4">
+            <h4 className="font-semibold">Missing Keywords</h4>
+            <ul className="mt-2 text-sm list-disc ml-5 space-y-1 max-h-64 overflow-auto pr-2">
+              {(proj.analysis.missing || []).map((k) => <li key={k}>{k}</li>)}
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-gray-300 bg-white p-4">
+            <h4 className="font-semibold">Suggestions</h4>
+            <ul className="mt-2 text-sm list-disc ml-5 space-y-1 max-h-64 overflow-auto pr-2">
+              {(proj.analysis.suggestions || []).map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

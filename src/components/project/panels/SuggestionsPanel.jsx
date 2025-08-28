@@ -1,3 +1,4 @@
+// src/components/project/components/SuggestionsPanel.jsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -15,10 +16,8 @@ function escapeHtml(s = '') {
     .replace(/>/g, '&gt;');
 }
 
-// Tokenize into words + punctuation, preserving tokens; keep spaces to re-join nicely
-// Example: "Hello, world!" -> ["Hello", ",", " ", "world", "!"]
+// Tokenize into words + punctuation + spaces
 function tokenizeForDiff(s = '') {
-  // Split into [word] | [punct] | [space] tokens
   const re = /([A-Za-z0-9+#./-]+|[^\sA-Za-z0-9]+|\s+)/g;
   const out = [];
   let m;
@@ -26,45 +25,32 @@ function tokenizeForDiff(s = '') {
   return out.length ? out : [s];
 }
 
-// LCS to produce diff of tokens (naive O(n*m) but fine for bullets/lines)
+// LCS diff of tokens
 function diffTokens(aTokens, bTokens) {
   const n = aTokens.length, m = bTokens.length;
   const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      if (aTokens[i] === bTokens[j]) dp[i][j] = dp[i + 1][j + 1] + 1;
-      else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      dp[i][j] = aTokens[i] === bTokens[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
-
   const out = [];
   let i = 0, j = 0;
   while (i < n && j < m) {
-    if (aTokens[i] === bTokens[j]) {
-      out.push({ type: 'equal', text: aTokens[i] });
-      i++; j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      out.push({ type: 'del', text: aTokens[i] });
-      i++;
-    } else {
-      out.push({ type: 'add', text: bTokens[j] });
-      j++;
-    }
+    if (aTokens[i] === bTokens[j]) { out.push({ type: 'equal', text: aTokens[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ type: 'del', text: aTokens[i++] }); }
+    else { out.push({ type: 'add', text: bTokens[j++] }); }
   }
-  while (i < n) { out.push({ type: 'del', text: aTokens[i++] }); }
-  while (j < m) { out.push({ type: 'add', text: bTokens[j++] }); }
+  while (i < n) out.push({ type: 'del', text: aTokens[i++] });
+  while (j < m) out.push({ type: 'add', text: bTokens[j++] });
   return out;
 }
 
-// Build highlighted HTML for original vs suggestion
 function highlightRewrite(original = '', suggestion = '') {
   const a = tokenizeForDiff(original);
   const b = tokenizeForDiff(suggestion);
   const ops = diffTokens(a, b);
 
-  // Original: show deletions with <del>, equal as normal (no additions)
-  // Suggestion: show additions/replacements with <mark> (adds) and equal as normal (no deletions)
   let origHtml = '';
   let suggHtml = '';
 
@@ -75,16 +61,12 @@ function highlightRewrite(original = '', suggestion = '') {
       origHtml += t;
       suggHtml += t;
     } else if (op.type === 'del') {
-      // Only show deletions on original side
-      // skip pure whitespace deletions to avoid noisy highlights
       if (!/^\s+$/.test(op.text)) {
         origHtml += `<del class="bg-red-50 line-through decoration-red-500/80">${t}</del>`;
       } else {
         origHtml += t;
       }
     } else if (op.type === 'add') {
-      // Only show additions on suggestion side
-      // If pure whitespace, keep as-is for spacing
       if (/^\s+$/.test(op.text)) {
         suggHtml += t;
       } else {
@@ -101,8 +83,6 @@ function highlightRewrite(original = '', suggestion = '') {
 export default function SuggestionsPanel({ project }) {
   const { proj, setProj, refresh } = useFreshProject(project);
   const [busy, setBusy] = useState(false);
-
-  // Mode toggle
   const [mode, setMode] = useState('focused'); // 'focused' | 'comprehensive'
 
   // If parent switches projects, refresh
@@ -126,7 +106,7 @@ export default function SuggestionsPanel({ project }) {
     return { rows, suggestions };
   }, [proj?.analysis]);
 
-  // Get resume & JD robustly
+  // Strong retrieval of resume/JD
   const ensureTexts = async () => {
     let resumeText = (proj?.resume_text || '').trim();
     let jdText = (proj?.jd_text || '').trim();
@@ -158,14 +138,8 @@ export default function SuggestionsPanel({ project }) {
     try {
       setBusy(true);
       const { resumeText, jdText, pid } = await ensureTexts();
-      if (!pid) {
-        toast.error('No project id available.');
-        return;
-      }
-      if (!resumeText || !jdText) {
-        toast.error('Add resume text + JD first (Analyze tab).');
-        return;
-      }
+      if (!pid) { toast.error('No project id available.'); return; }
+      if (!resumeText || !jdText) { toast.error('Add resume text + JD first (Analyze tab).'); return; }
 
       const variantId = `${mode}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const res = await fetch('/api/ai-analyze', {
@@ -175,12 +149,8 @@ export default function SuggestionsPanel({ project }) {
       });
       const data = await res.json();
 
-      if (!res.ok) {
-        toast.error(data?.error || 'Analyze failed');
-        return;
-      }
+      if (!res.ok) { toast.error(data?.error || 'Analyze failed'); return; }
 
-      // Save on project
       const { data: updated, error } = await supabase
         .from('projects')
         .update({
@@ -195,7 +165,6 @@ export default function SuggestionsPanel({ project }) {
         .single();
 
       if (error) throw error;
-
       setProj(updated);
       toast.success('Suggestions regenerated');
     } catch (e) {
@@ -243,8 +212,8 @@ export default function SuggestionsPanel({ project }) {
       {/* Controls */}
       <div className="rounded-xl border border-gray-300 bg-white p-4">
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-          <div>
-            <h3 className="font-semibold">AI Rewrite Suggestions</h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold leading-tight">AI Rewrite Suggestions</h3>
             <p className="text-sm text-gray-700">Based on your JD and current resume text.</p>
           </div>
 
@@ -253,9 +222,9 @@ export default function SuggestionsPanel({ project }) {
             <div className="flex items-center gap-2 mr-2">
               <button
                 onClick={() => setMode('focused')}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm border ${
-                  mode === 'focused' ? 'bg-black text-white' : 'border-gray-300 hover:bg-gray-100'
-                }`}
+                className={`inline-flex items-center gap-2 rounded-lg border text-sm
+                  px-2.5 py-1.5 md:px-3 md:py-2
+                  ${mode === 'focused' ? 'bg-black text-white' : 'border-gray-300 hover:bg-gray-100'}`}
                 title="Targeted changes only"
               >
                 Focused
@@ -263,14 +232,22 @@ export default function SuggestionsPanel({ project }) {
 
               <button
                 onClick={() => setMode('comprehensive')}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm border ${
-                  mode === 'comprehensive' ? 'bg-black text-white' : 'border-gray-300 hover:bg-gray-100'
-                }`}
+                className={`inline-flex items-center gap-2 rounded-lg border text-sm
+                  px-2.5 py-1.5 md:px-3 md:py-2
+                  ${mode === 'comprehensive' ? 'bg-black text-white' : 'border-gray-300 hover:bg-gray-100'}`}
                 title="Broader coverage and more suggestions"
               >
                 Comprehensive
-                <span className="ml-1 inline-flex items-center gap-1 text-xs font-medium rounded bg-gray-900 text-white px-2 py-0.5">
-                  <ThumbsUp className="w-3 h-3" /> Recommended
+                {/* Compact, responsive "Recommended" badge */}
+                <span
+                  className="ml-1 inline-flex items-center gap-1 shrink-0 rounded
+                             bg-gray-900 text-white leading-none
+                             px-1.5 py-0.5 md:px-2
+                             text-[10px] sm:text-xs"
+                >
+                  <ThumbsUp className="w-3 h-3" />
+                  {/* Hide text on very small screens, show from sm: */}
+                  <span className="hidden sm:inline">Recommended</span>
                 </span>
               </button>
             </div>
@@ -279,7 +256,9 @@ export default function SuggestionsPanel({ project }) {
             <button
               onClick={regenerate}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-xl bg-black text-white px-4 py-2 text-sm font-medium hover:bg-black/90 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-black text-white
+                         px-3 py-1.5 md:px-4 md:py-2
+                         text-sm font-medium hover:bg-black/90 disabled:opacity-50"
             >
               <RefreshCcw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
               {busy ? 'Regenerating…' : 'Regenerate'}
@@ -287,14 +266,16 @@ export default function SuggestionsPanel({ project }) {
 
             <button
               onClick={copyAll}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300
+                         px-3 py-1.5 text-sm hover:bg-gray-100"
             >
               <ClipboardList className="w-4 h-4" /> Copy All
             </button>
 
             <button
               onClick={downloadTxt}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300
+                         px-3 py-1.5 text-sm hover:bg-gray-100"
             >
               <Download className="w-4 h-4" /> Download
             </button>
@@ -306,7 +287,10 @@ export default function SuggestionsPanel({ project }) {
       {hasRewrites && (
         <div className="space-y-4">
           {rows.map((r, idx) => (
-            <div key={idx} className="grid grid-cols-1 lg:grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-white p-3">
+            <div
+              key={idx}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-white p-3"
+            >
               <div>
                 <div className="text-xs text-gray-500 mb-1">Original</div>
                 <div
@@ -335,10 +319,13 @@ export default function SuggestionsPanel({ project }) {
       )}
 
       {/* Plain suggestions (if any) */}
-      {(!hasRewrites && suggestions?.length > 0) && (
+      {!hasRewrites && suggestions?.length > 0 && (
         <div className="space-y-3">
           {suggestions.map((s, idx) => (
-            <div key={idx} className="rounded-xl border border-gray-200 bg-white p-3 flex items-start justify-between gap-3">
+            <div
+              key={idx}
+              className="rounded-xl border border-gray-200 bg-white p-3 flex items-start justify-between gap-3"
+            >
               <div className="text-sm font-medium">{s}</div>
               <button
                 onClick={() => copyOne(s)}
@@ -352,7 +339,7 @@ export default function SuggestionsPanel({ project }) {
       )}
 
       {/* Empty state */}
-      {(!hasRewrites && (!suggestions || !suggestions.length)) && (
+      {!hasRewrites && (!suggestions || !suggestions.length) && (
         <div className="rounded-xl border border-gray-300 bg-white p-4">
           <div className="text-sm text-gray-700">
             No suggestions yet. Click <strong>Regenerate</strong> after analyzing (Analyze tab).

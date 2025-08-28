@@ -1,3 +1,6 @@
+
+
+/*** for responsive design across all devices  */
 import './globals.css';
 import Script from 'next/script';
 import CookieBanner from '../components/CookieBanner';
