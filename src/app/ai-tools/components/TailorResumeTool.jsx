@@ -254,24 +254,109 @@ export default function TailorResumeTool() {
       const enhanced = applyRewrites(resumeText, a1?.rewrites || []);
       setEnhancedText(enhanced);
 
-      // 3) re-score enhanced
-      const a2Res = await fetch('/api/ai-analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeText: enhanced, jdText, variantId: `${variantId}_after`, mode: 'focused' }),
-      });
-      const a2 = await a2Res.json();
-      if (!a2Res.ok) throw new Error(a2?.error || 'Analyze failed');
-      setAfterScore(a2?.score ?? null);
+   
+// 3) re-score enhanced
+const a2Res = await fetch('/api/ai-analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    resumeText: enhanced,
+    jdText,
+    variantId: `${variantId}_after`,
+    mode: 'focused',
+  }),
+});
 
-      // 4) persist (optional)
-      if (projectId) {
-        await supabase.from('projects').update({
-          analysis: a2,
-          latest_score: a2?.score ?? null,
-          status: 'Analyzed',
-        }).eq('id', projectId);
-      }
+const a2raw = await a2Res.json();
+if (!a2Res.ok) throw new Error(a2raw?.error || 'Analyze failed');
+
+// enrich analysis payload (client-side convenience)
+const a2 = {
+  ...a2raw,
+  before_score: a1?.score ?? null,
+  after_score: a2raw?.score ?? null,
+};
+
+//  PERSIST ANALYZE RUN — REQUIRED FOR REPORTS & TRENDS
+const { data: userData, error: userErr } = await supabase.auth.getUser();
+if (userErr) throw userErr;
+
+const { error: insertErr } = await supabase
+  .from('analyze_runs')
+  .insert({
+    project_id: projectId || null,
+    user_id: userData.user.id,
+    score_before: a1?.score ?? 0,
+    score_after: a2raw?.score ?? 0,
+    suggestions_count: Array.isArray(a2raw?.rewrites)
+      ? a2raw.rewrites.length
+      : 0,
+    ats_fail_count: a2raw?.ats_fail_count ?? 0,
+    ats_issues: a2raw?.ats_issues ?? [],
+   engine: 'groq',
+model: 'openai/gpt-oss-120b',
+
+    duration_ms: a2raw?.duration_ms ?? null,
+  });
+
+if (insertErr) throw insertErr;
+
+// update local UI state
+setAfterScore(a2raw?.score ?? null);
+
+
+   
+// 4) persist analyze run (THIS IS WHAT FEEDS REPORTS)
+const { data: sessionData } = await supabase.auth.getSession();
+const userId = sessionData?.session?.user?.id;
+
+if (userId && projectId) {
+  await supabase
+    .from('analyze_runs')
+    .insert({
+      user_id: userId,
+      project_id: projectId,
+      score_before: a1?.score ?? 0,
+      score_after: a2raw?.score ?? 0,
+      suggestions_count: Array.isArray(a1?.rewrites)
+        ? a1.rewrites.length
+        : 0,
+      ats_fail_count: Array.isArray(a2raw?.ats)
+        ? a2raw.ats.filter(a => a.status === 'fail').length
+        : 0,
+      ats_issues: a2raw?.ats ?? [],
+      engine: 'groq',
+      model: 'openai/gpt-oss-120b',
+    });
+}
+
+
+
+// 5) append analytics run (for reports & trends)
+if (projectId) {
+  const { data: sessionData } = await supabase.auth.getSession();
+
+  await supabase.from('analyze_runs').insert({
+    project_id: projectId,
+    user_id: sessionData?.session?.user?.id,
+    score_before: a1?.score ?? null,
+    score_after: a2?.score ?? null,
+    suggestions_count: Array.isArray(a2?.rewrites)
+      ? a2.rewrites.length
+      : Array.isArray(a2?.suggestions)
+      ? a2.suggestions.length
+      : 0,
+    ats_fail_count: Array.isArray(a2?.ats)
+      ? a2.ats.filter(i => i.status === 'fail').length
+      : 0,
+    ats_issues: a2?.ats ?? null,
+    engine: 'groq',
+model: 'openai/gpt-oss-120b',
+
+    created_at: new Date().toISOString(),
+  });
+}
+
 
       // show tailored in viewer by default after run
       setActiveView('tailored');

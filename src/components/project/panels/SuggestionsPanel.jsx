@@ -154,7 +154,7 @@ export default function SuggestionsPanel({ project }) {
       const { data: updated, error } = await supabase
         .from('projects')
         .update({
-          latest_score: data.score,
+          latest_score: Number(data.score) || 0,
           status: 'Analyzed',
           analysis: data
         })
@@ -180,15 +180,29 @@ export default function SuggestionsPanel({ project }) {
     toast.success('Copied');
   };
 
-  const copyAll = async () => {
-    const list = [
-      ...(suggestions || []),
-      ...(rows || []).map(r => r.suggestion)
-    ].filter(Boolean);
-    if (!list.length) return;
-    await navigator.clipboard.writeText(list.map(s => `• ${s}`).join('\n'));
-    toast.success('All suggestions copied');
-  };
+ const copyAll = async () => {
+  const list = [
+    ...(suggestions || []),
+    ...(rows || []).map(r => r.suggestion),
+  ].filter(Boolean);
+
+  if (!list.length) return;
+
+  await navigator.clipboard.writeText(list.map(s => `• ${s}`).join('\n'));
+
+  // ✅ Track applied suggestions
+  if (proj?.id) {
+    await supabase
+      .from('projects')
+      .update({
+        applied_suggestions_count:
+          (proj.applied_suggestions_count || 0) + list.length,
+      })
+      .eq('id', proj.id);
+  }
+
+  toast.success('All suggestions copied');
+};
 
   const downloadTxt = () => {
     const list = [

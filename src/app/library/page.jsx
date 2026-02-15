@@ -155,17 +155,24 @@ async function handleDelete(item) {
 
       {/* List View */}
       {view === 'list' && (
-        <div className="bg-black" style={{ borderBottomLeftRadius: '10px', borderBottomRightRadius: '10px' }}>
+        <div className="bg-white" style={{ borderRadius: '30px'}}>
           <table className="min-w-full border rounded-2xl overflow-hidden text-sm">
             <thead>
-              <tr className="bg-gray-50 text-gray-500">
-                <th className="px-4 py-2 text-left">Name</th>
+              <tr className="">
+                <th className="px-7 py-2 text-left text-black">Name</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(it => (
                 <tr key={it.id} className="border-t border-gray-200/60">
-                  <td className="px-4 py-3 flex items-center gap-2">{iconForMime(it.mime)}<span className="truncate text-lg">{it.name}</span></td>
+<td className="px-4 py-3 flex items-center gap-2 text-black">
+  <span className="text-black">
+    {iconForMime(it.mime)}
+  </span>
+  <span className="truncate text-lg text-black">
+    {it.name}
+  </span>
+</td>
                   <td className="px-4 py-3 flex justify-end gap-4">
                     <button onClick={() => handleDownload(it)} className="text-gray-700 hover:text-red-900 cursor-pointer flex items-center gap-1"><Download className="w-5 h-5" /> Download</button>
                     <button onClick={() => handleDelete(it)} className="text-red-600 hover:text-red-700 flex items-center gap-1"><Trash2 className="w-5 h-5" /> Delete</button>
@@ -182,10 +189,15 @@ async function handleDelete(item) {
       {view === 'grid' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filtered.map(it => (
-            <div key={it.id} className="rounded-2xl border bg-black p-4 flex flex-col justify-between h-32">
-              <div className="flex items-center gap-2">{iconForMime(it.mime)}<div className="font-semibold truncate">{it.name}</div></div>
+            <div key={it.id} className="rounded-2xl border bg-white p-4 flex flex-col justify-between h-32">
+<div className="flex items-center gap-2 text-black">
+  {iconForMime(it.mime)}
+  <div className="font-semibold truncate">
+    {it.name}
+  </div>
+</div>
               <div className="mt-3 flex justify-end gap-2">
-                <button onClick={() => handleDownload(it)} className="px-3 py-1 text-xs border rounded flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>
+                <button onClick={() => handleDownload(it)} className="px-3 py-1 text-xs border rounded flex items-center gap-1 text-black"><Download className="w-3 h-3 text-black"  /> Download</button>
                 <button onClick={() => handleDelete(it)} className="px-3 py-1 text-xs border rounded flex items-center gap-1 text-red-600"><Trash2 className="w-3 h-3" /> Delete</button>
               </div>
             </div>
