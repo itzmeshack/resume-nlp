@@ -5,8 +5,14 @@ import { supabase } from '../../lib/supabaseClient';
 import AppShell from '../../components/app/AppShell';
 import { Toaster, toast } from 'react-hot-toast';
 import ScoreTrendChart from '../../app/reports/ScoreTrendChart';
+import { RefreshCw, BarChart3, TrendingUp, ShieldCheck, Sparkles } from 'lucide-react'
 
-import { BarChart3, TrendingUp, ShieldCheck, Sparkles } from 'lucide-react';
+
+
+
+
+
+
 
 /* ---------------- KPI CARD ---------------- */
 
@@ -35,6 +41,7 @@ function KPI({ icon, label, value, hint, colorClass = 'text-blue-600' }) {
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState(null);
 
   // filters
@@ -65,7 +72,6 @@ export default function ReportsPage() {
       if (!mounted) return;
       setSession(sess.session);
 
-      // preload projects
       const { data: projList, error } = await supabase
         .from('projects')
         .select('id, name, created_at')
@@ -77,6 +83,7 @@ export default function ReportsPage() {
       setProjects(projList || []);
 
       await refreshReports(sess.session.user.id);
+
       if (mounted) setLoading(false);
     })();
 
@@ -102,13 +109,11 @@ export default function ReportsPage() {
         fetch(`/api/reports/ats?${qs}`),
       ]);
 
-    const [sJson, tJson, aJson] = await Promise.all([
-  sRes.json(),
-  tRes.json(),
-  aRes.json(),
-]);
-
-console.log('TREND RESPONSE RAW:', tJson);
+      const [sJson, tJson, aJson] = await Promise.all([
+        sRes.json(),
+        tRes.json(),
+        aRes.json(),
+      ]);
 
       if (!sRes.ok) throw new Error(sJson?.error || 'Summary failed');
       if (!tRes.ok) throw new Error(tJson?.error || 'Trend failed');
@@ -119,6 +124,19 @@ console.log('TREND RESPONSE RAW:', tJson);
       setTopATS(Array.isArray(aJson) ? aJson : []);
     } catch (e) {
       toast.error(e.message);
+    }
+  }
+
+  /* ---------------- REFRESH BUTTON ---------------- */
+
+  async function handleRefresh() {
+    if (!session) return;
+
+    try {
+      setRefreshing(true);
+      await refreshReports(session.user.id);
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -147,7 +165,7 @@ console.log('TREND RESPONSE RAW:', tJson);
   return (
     <AppShell>
       <Toaster />
-      <main className="min-h-screen bg-white">
+      <main className="min-h-screen bg-white rounded-[20px] shadow">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
 
           {/* Header */}
@@ -160,33 +178,44 @@ console.log('TREND RESPONSE RAW:', tJson);
                 High-contrast view with real backend metrics.
               </p>
             </div>
-            <button
-              onClick={() => session && refreshReports(session.user.id)}
-              className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm"
+  <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 rounded-xl bg-red-900 text-white px-4 py-2 text-sm hover:bg-red transition disabled:opacity-60"
             >
-              Refresh
+              <RefreshCw
+                className={`w-4 h-4 ${
+                  refreshing ? 'animate-spin' : ''
+                }`}
+              />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
+
           </div>
 
           {/* Filters */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 mb-6">
+<div className="rounded-2xl p-4 mb-6 from-gray-900 via-white to-gray-800 border border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.2)]">
+
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
+<input
+  type="date"
+  value={dateFrom}
+  onChange={e => setDateFrom(e.target.value)}
+   className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-black"
+/>
+
+
+<input
+  type="date"
+  value={dateTo}
+  onChange={e => setDateTo(e.target.value)}
+  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-black"
+/>
+
               <select
                 value={projectId}
                 onChange={e => setProjectId(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-black"
               >
                 <option value="">All projects</option>
                 {projects.map(p => (
@@ -201,7 +230,7 @@ console.log('TREND RESPONSE RAW:', tJson);
                   setDateTo('');
                   setProjectId('');
                 }}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-white bg-red-900"
               >
                 Clear
               </button>
@@ -277,15 +306,15 @@ console.log('TREND RESPONSE RAW:', tJson);
               </h3>
               <ul className="space-y-2">
                 {topATS.map((i, idx) => (
-                  <li key={idx} className="flex justify-between text-sm">
+                  <li key={idx} className="flex justify-between text-sm text-red-500">
                     <span>{i.issue}</span>
-                    <span className="px-2 py-0.5 bg-gray-100 rounded border">
+                    <span className="px-2 py-0.5 bg-black-100 rounded border">
                       {i.count}
                     </span>
                   </li>
                 ))}
                 {!topATS.length && (
-                  <li className="text-sm text-gray-500">
+                  <li className="text-sm text-black-500">
                     No data in range.
                   </li>
                 )}

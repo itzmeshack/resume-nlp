@@ -1,11 +1,15 @@
 'use client';
+
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+
   const toggleMenu = () => setMenuOpen(!menuOpen);
 
   const navLinks = [
@@ -18,22 +22,34 @@ export default function Navbar() {
 
   return (
     <nav className="w-full px-6 py-4 flex justify-between items-center shadow-md bg-white fixed top-0 z-50">
-      {/* Logo */}
-  
-<Link href="/" className="text-xl font-bold text-blue-600">
-  ResumeAI
-</Link>
+
+      <Link href="/" className="text-xl font-bold text-blue-600">
+        ResumeAI
+      </Link>
 
       {/* Desktop Nav */}
       <ul className="hidden md:flex gap-6 text-sm font-medium">
-        {navLinks.map((link) => (
-          <li key={link.label}>
-            <a href={link.href} className="hover:text-blue-500">{link.label}</a>
-          </li>
-        ))}
+        {navLinks.map((link) => {
+          const active = pathname === link.href;
+
+          return (
+            <li key={link.label}>
+              <Link
+                href={link.href}
+                className={`transition ${
+                  active
+                    ? 'text-blue-600 font-semibold border-b-2 border-blue-600 pb-1'
+                    : 'text-gray-800 hover:text-blue-500'
+                }`}
+              >
+                {link.label}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
 
-      {/* Desktop Auth Buttons */}
+      {/* Desktop Auth */}
       <div className="hidden md:flex gap-3">
         <Link href="/signin" className="text-sm font-semibold text-gray-800 hover:text-blue-600">
           Sign In
@@ -43,12 +59,12 @@ export default function Navbar() {
         </Link>
       </div>
 
-      {/* Mobile Toggle Button */}
+      {/* Mobile Toggle */}
       <button onClick={toggleMenu} className="md:hidden">
         {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
       </button>
 
-      {/* Mobile Menu (Animated) */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -59,18 +75,27 @@ export default function Navbar() {
             className="absolute top-16 left-0 w-full bg-white shadow-md py-6 px-4 z-40 md:hidden"
           >
             <ul className="flex flex-col gap-4 text-sm font-medium mb-4">
-              {navLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="block hover:text-blue-500"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
+              {navLinks.map((link) => {
+                const active = pathname === link.href;
+
+                return (
+                  <li key={link.label}>
+                    <Link
+                      href={link.href}
+                      onClick={() => setMenuOpen(false)}
+                      className={`block transition ${
+                        active
+                          ? 'text-blue-600 font-semibold'
+                          : 'text-gray-800 hover:text-blue-500'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
+
             <div className="flex flex-col gap-3">
               <Link href="/signin" className="text-sm font-semibold text-gray-800 hover:text-blue-600">
                 Sign In
@@ -82,6 +107,7 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
     </nav>
   );
 }

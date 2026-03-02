@@ -1,5 +1,9 @@
 'use client';
 
+
+/* we dont use this  code its meant to be stactic code for a recent project 
+which was in dashbard*/
+
 import Link from 'next/link';
 
 const mock = [

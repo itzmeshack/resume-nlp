@@ -31,7 +31,7 @@ export default function Topbar({ onMenu = () => {} }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onMenu}
-            className="md:hidden p-2 rounded-md hover:bg-black/5"
+            className="md:hidden p-2 rounded-md hover:bg-white text-white"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
@@ -64,7 +64,7 @@ export default function Topbar({ onMenu = () => {} }) {
 
           <button
             onClick={signOut}
-            className="rounded-xl text-white cursor-pointer border border-black/15 px-3 py-2 text-sm hover:bg-white/5"
+            className="rounded-xl text-white cursor-pointer bg-red-500 border border-black/15 px-3 py-2 text-sm hover:bg-red-200"
           >
             Sign out
           </button>

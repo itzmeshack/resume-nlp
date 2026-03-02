@@ -542,10 +542,17 @@ model: 'openai/gpt-oss-120b',
         {/* The sheet preview (scaled to fit container, scroll disabled here) */}
         <div className="relative">
           <div className="flex justify-center">
-            <div
-              style={{ width: `${SHEET_W}px` }}
-              className="bg-white text-black rounded-xl shadow-[0_25px_80px_rgba(0,0,0,0.45)] ring-1 ring-black/5"
-            >
+          <div
+  className="
+    w-[300px]
+    md:w-[816px]
+    bg-white text-black rounded-xl
+    shadow-[0_25px_80px_rgba(0,0,0,0.45)]
+    ring-1 ring-black/5
+  "
+
+>
+
               <div className="px-10 py-12 leading-[1.55] text-[13px]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="font-extrabold text-blue-600">ResumeAI — {activeView === 'original' ? 'Original' : 'Tailored'}</div>
