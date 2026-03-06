@@ -1,5 +1,5 @@
 'use client';
-
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import AppShell from '../../components/app/AppShell';
 import { supabase } from '../../lib/supabaseClient';
@@ -7,6 +7,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { Save, Trash2 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
@@ -23,6 +24,8 @@ export default function SettingsPage() {
   });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+
 
 
   useEffect(() => {
@@ -58,16 +61,30 @@ export default function SettingsPage() {
     else toast.success('Settings updated');
   }
 
-  async function deleteAccount() {
-    if (!confirm('Delete your account permanently?')) return;
+async function deleteAccount() {
+  try {
+    toast.loading('Deleting account...');
 
-    await supabase.auth.resetPasswordForEmail(email);
-    await supabase.from('projects').delete().eq('user_id', userId);
-    await supabase.from('settings').delete().eq('user_id', userId);
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
 
-    toast.success('Check your email to confirm account action.');
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error);
+    }
+
+    await supabase.auth.signOut();
+
+    router.replace('/');
+
+  } catch (err) {
+    toast.error(err.message);
   }
-
+}
   if (loading) return null;
 
   return (
